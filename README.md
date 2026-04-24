@@ -144,7 +144,7 @@ The kit detects your project's **target platform** and installs the required too
 
 ### Required during kickoff: Web automation (always)
 - **Node.js + Playwright MCP** (needed by the kickoff wizard self-test and any Web project)
-- Auto: `claude mcp add playwright -s user -- npx -y @playwright/mcp@latest`
+- Auto: `claude mcp add playwright -s user -- npx -y @playwright/mcp@latest --headless`
 - Pre-install: `npx playwright install chromium` (~150 MB)
 
 ### Installed per target platform (triggered after kickoff produces the requirements bible)
@@ -167,7 +167,7 @@ See `.claude/playbooks/platform-setup.md` for the complete flow.
 
 ```bash
 # Register MCP
-claude mcp add playwright -s user -- npx -y @playwright/mcp@latest
+claude mcp add playwright -s user -- npx -y @playwright/mcp@latest --headless
 
 # Pre-install browser
 npx -y playwright install chromium
@@ -179,7 +179,7 @@ Or edit `~/.claude.json` / the project's `.mcp.json` by hand:
   "mcpServers": {
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
+      "args": ["-y", "@playwright/mcp@latest", "--headless"]
     }
   }
 }

@@ -263,13 +263,28 @@ npx --version
   - 技术："<称呼>，检测到没 Node.js。去 nodejs.org 装 LTS，或用 volta/fnm/nvm 自己挑"
 - 停止 kickoff，等用户装好回来再继续
 
-#### 0.5.2 检查 Playwright MCP 是否已装
+#### 0.5.2 检查 Playwright MCP 是否已装 + 是否 headless
 
 ```bash
 claude mcp list 2>&1 | grep -i playwright || echo "NOT_INSTALLED"
 ```
 
-**找到 playwright 条目** → 已装，跳到 0.5.4 验证浏览器。
+**找到 playwright 条目** → 已装，**再查是否带 `--headless`**：
+
+```bash
+claude mcp get playwright 2>&1 | grep -- "--headless" && echo "HEADLESS_OK" || echo "NEEDS_HEADLESS_UPGRADE"
+```
+
+- `HEADLESS_OK` → 已是无头模式，跳到 0.5.4 验证浏览器。
+- `NEEDS_HEADLESS_UPGRADE` → ⚠️ 旧配置会弹浏览器打扰用户（铁律 10），**必须升级**。按画像告诉用户：
+  > `<称呼>，检测到你装过 Playwright MCP 但是有头模式——这会让 AI 自测时弹浏览器，容易让人以为是让你填的。我升级成无头版（不弹窗）。`
+
+  执行：
+  ```bash
+  claude mcp remove playwright -s user
+  claude mcp add playwright -s user -- npx -y @playwright/mcp@latest --headless
+  ```
+  升完走 0.5.4 的重启流程（MCP 配置变化需重启 Claude Code 生效）。
 
 **输出 "NOT_INSTALLED"** → 进入 0.5.3 自动装。
 
@@ -295,7 +310,7 @@ claude mcp list 2>&1 | grep -i playwright || echo "NOT_INSTALLED"
 
 ```bash
 # 1) 注册 MCP server 到用户全局配置
-claude mcp add playwright -s user -- npx -y @playwright/mcp@latest
+claude mcp add playwright -s user -- npx -y @playwright/mcp@latest --headless
 ```
 
 这一步应该几秒返回（属于下载监控协议的"同步执行例外"）。检查输出确认成功（stdout 含 "added" 或类似成功提示）。
@@ -1048,7 +1063,12 @@ if __name__ == '__main__':
 
 **规则**：生成 wizard.html 和 server.py 后，**必须自己用 Playwright MCP 跑一遍冒烟测试**，确认没 bug 再让用户看。
 
-**为什么必须**：Claude 写完 HTML 不测就交出去是典型失败模式。CSS 选择器细节错误、JS 语法错误、chip 不 append、radio 不显示选中… 这些 bug 你生成完**完全不知道**，用户打开看到一堆坏按钮。
+**⚠️ 两个浏览器场景严格分开（铁律 10）**：
+- **AI 自测**（本节 2.2.5 做的这件事）→ **headless**，用 MCP 工具跑，用户看不见。
+- **给用户填表**（后面 2.3 做）→ 用 `webbrowser.open()` / `start` / `open` 启动**用户自己的默认浏览器**打开。
+- **绝对禁止**：用 Playwright MCP 开有头窗口代替给用户看——用户会以为那是让 TA 填的页面，当成 bug。MCP 注册时已加 `--headless`（见 0.5.3），正常调 `mcp__playwright__*` 就是无头。
+
+**为什么必须自测**：Claude 写完 HTML 不测就交出去是典型失败模式。CSS 选择器细节错误、JS 语法错误、chip 不 append、radio 不显示选中… 这些 bug 你生成完**完全不知道**，用户打开看到一堆坏按钮。
 
 **自测清单**（跑一遍点所有关键控件）：
 

@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (自动安装 Playwright MCP)
 - kickoff playbook 新增 **阶段 0.5：前置依赖检查**
-- 检测 Playwright MCP 未装 → 自动 `claude mcp add playwright -s user -- npx -y @playwright/mcp@latest`
+- 检测 Playwright MCP 未装 → 自动 `claude mcp add playwright -s user -- npx -y @playwright/mcp@latest --headless`（headless 默认：AI 自测不弹浏览器打扰用户）
 - 后台 `npx playwright install chromium` 预装 150MB 浏览器
 - 检查 Node.js 可用性，没装则按画像引导用户去 nodejs.org
 - 装完提示用户重启 Claude Code 让 MCP 生效，新会话自动从阶段 1 续上（不重新走画像）

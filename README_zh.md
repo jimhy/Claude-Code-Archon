@@ -143,7 +143,7 @@ kit 根据**项目目标平台**自动检测 + 安装所需工具，无需手动
 
 ### Kickoff 阶段必装：Web 自动化（所有项目都要）
 - **Node.js + Playwright MCP**（kickoff wizard 自测 + 任何 Web 项目都要）
-- 自动：`claude mcp add playwright -s user -- npx -y @playwright/mcp@latest`
+- 自动：`claude mcp add playwright -s user -- npx -y @playwright/mcp@latest --headless`
 - 预装：`npx playwright install chromium`（~150MB）
 
 ### 按目标平台装（kickoff 产出需求圣经后自动触发）
@@ -166,7 +166,7 @@ kit 根据**项目目标平台**自动检测 + 安装所需工具，无需手动
 
 ```bash
 # 加 MCP
-claude mcp add playwright -s user -- npx -y @playwright/mcp@latest
+claude mcp add playwright -s user -- npx -y @playwright/mcp@latest --headless
 
 # 预装浏览器
 npx -y playwright install chromium
@@ -178,7 +178,7 @@ npx -y playwright install chromium
   "mcpServers": {
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
+      "args": ["-y", "@playwright/mcp@latest", "--headless"]
     }
   }
 }

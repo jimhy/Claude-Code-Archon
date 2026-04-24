@@ -109,7 +109,7 @@ Claude Code 的 **subagent 是独立一次性 session**：
 
 ---
 
-## 🔒 第 2 条：九条铁律（任何 agent 必守）
+## 🔒 第 2 条：十条铁律（任何 agent 必守）
 
 1. **禁止顺手优化** — 只改任务直接相关的文件。看到丑代码也不动。修 bug 时不同时加 feature。
 2. **UI 必须截图验证 + 交互自测** — 任何 UI 改动/生成必须实际跑起来用 Playwright 截图 + **点一遍关键控件**（radio/checkbox/按钮/图片放大/翻页/提交）。不能说"应该能工作"。写完就扔给用户 = 失败。
@@ -120,6 +120,7 @@ Claude Code 的 **subagent 是独立一次性 session**：
 7. **按用户画像适配沟通** — 所有对用户说话的 agent 必须先读 `~/.claude/user-profile.md`，用**称呼**（不是"用户"/"你"），按技术层级调整术语深度。
 8. **装工具前必须先检测，已装的直接跳过** — 任何下载/安装动作（winget / brew / npm i -g / 脚本安装 / 下载安装包等）前，**必须**先用检测命令确认是否已装（`command -v X` / `X --version` / `winget list` / `npm list -g` / 路径 `ls` 等）。已装 → 只记录版本，**跳过安装**。禁止"保险起见再装一遍"、禁止重复下载。适用所有 agent 和 playbook（尤其 platform-setup、kickoff 阶段 0.5）。
 9. **长耗时下载必须后台跑 + 周期监控 + 卡死重启** — 凡预期 > 30 秒的网络下载/安装（winget / brew / npm i -g / pip / `curl \| bash` / `playwright install chromium` / sdkmanager 等）**一律** `run_in_background: true` + 日志落盘到 `.claude/.setup-logs/<tool>-<attempt>.log`，主 agent 每 30 秒（大包 45-60 秒）poll 日志字节数；**连续 3 次（~90 秒）无增长**或出现 `ECONNRESET` / `ETIMEDOUT` / `getaddrinfo` / `Could not resolve host` / `SSL` / `network is unreachable` → **立即判卡死**：kill 进程 → 换镜像（npm→npmmirror、pip→清华、playwright→npmmirror、brew→清华 bottle、winget→GitHub Releases 直下）→ 重启。最多 3 次仍失败 → escalate 用户（卡点报告）。**禁止同步 `Bash` 干等**——那样你看不到任何信号，用户以为你挂了。完整协议见 `.claude/playbooks/platform-setup.md` 的"🛰 下载监控协议"章节；主 agent 和 subagent（含 agent-creator 动态造的）都必守。
+10. **AI 自测一律 headless，禁止弹浏览器打扰用户** — Playwright MCP 默认必须以 `--headless` 启动（`claude mcp add playwright -s user -- npx -y @playwright/mcp@latest --headless`）。agent 做任何自测、截图、E2E、UI 评审、竞品抓取都走 headless，**浏览器窗口绝不能弹到用户面前**——用户一看到弹窗就会以为是让 TA 填/点的，误当成 bug。**唯一例外**：kickoff 阶段 2 给用户打开 wizard 表单时，用 OS 命令（`start <url>` / `open <url>` / `xdg-open <url>`）启动**用户自己的默认浏览器**，并在开之前明确告诉用户"这个是给你填的"——绝不用 Playwright MCP 开有头窗口代替。装 MCP 前若检测到已有非 headless 版本，先 `claude mcp remove playwright -s user` 再重装加 `--headless`。
 
 ---
 
