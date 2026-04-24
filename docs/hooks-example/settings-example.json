@@ -1,0 +1,88 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/schemas/settings.json",
+  "_comment_top": "项目级 .claude/settings.json 模板。部署到项目根目录 .claude/settings.json。",
+
+  "permissions": {
+    "_comment": "根据项目按需扩展；默认拦截危险命令",
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(git push --force origin main:*)",
+      "Bash(git push --force origin master:*)",
+      "Bash(git reset --hard origin/main)",
+      "Bash(git reset --hard origin/master)",
+      "Bash(* --no-verify *)",
+      "Bash(curl * | sh)",
+      "Bash(curl * | bash)",
+      "Bash(wget * | sh)"
+    ],
+    "allow": [
+      "Bash(npm *)",
+      "Bash(pnpm *)",
+      "Bash(bun *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git checkout *)",
+      "Bash(git branch *)",
+      "Bash(npx playwright *)",
+      "Bash(npx vitest *)",
+      "Bash(npx lighthouse *)"
+    ]
+  },
+
+  "hooks": {
+    "_comment": "pre-commit 机械 gate：lint / type / 单元测试不过不让 commit",
+
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "scripts/check-commit-safety.sh",
+            "_note": "如 Bash 命令是 git commit，检查 lint/type/test；其它命令直接放行。实现见 scripts/check-commit-safety.sh 参考"
+          }
+        ]
+      }
+    ],
+
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "scripts/auto-format.sh $CLAUDE_FILE_PATH",
+            "_note": "文件编辑后自动跑 prettier/biome format"
+          }
+        ]
+      }
+    ],
+
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "scripts/verify-deliverables.sh",
+            "_note": "Claude 声称完成时，核对：是否有对应的截图/录屏证据？没有 = 未完成"
+          }
+        ]
+      }
+    ]
+  },
+
+  "env": {
+    "_comment": "项目环境变量（非敏感）",
+    "NODE_ENV": "development"
+  },
+
+  "_deployment_note": [
+    "本文件放到项目根目录 .claude/settings.json。",
+    "敏感配置（API key）放 .claude/settings.local.json（加入 .gitignore）。",
+    "scripts/ 目录下的 hook 脚本需自己编写，见本目录下 scripts-example/ 参考。"
+  ]
+}

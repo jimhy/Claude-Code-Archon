@@ -1,0 +1,63 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# 测试 / 本地产物
+test-results/
+playwright-report/
+coverage/
+
+# Playwright MCP 运行副产物（snapshot yml / console log，每次调用新增）
+.playwright-mcp/
+
+# 用户本地的 .claude/（贡献者不要提交自己的）
+.claude/settings.local.json
+.claude/.setup-logs/
+.claude/agents/_drafts/
+
+# 备份目录（install.sh 生成）
+.backup-*/
+
+# 环境
+.env
+.env.local
+.env.*.local
+
+# ──────────────────────────────────────────
+# Kickoff / 项目运行时产物（Archon 仓库层面 ignore；
+# 用户自己的项目仓库里这些文件该进版本库的另说）
+# ──────────────────────────────────────────
+
+# kickoff playbook 产出：每个项目跑完才生成，不属于模板
+docs/requirements.md
+docs/kickoff/
+docs/design/
+
+# kickoff 阶段 2 临时向导（answers.json 含用户输入，不可入库）
+wizard.html
+answers.json
+server.py
+setup-log.md
+
+# 项目交付 / 反馈 / 用户设计参考
+delivery/
+feedback-inbox/
+design-references/
+
+# 用户项目源码（不应出现在 Archon 模板仓库）
+src/
+tests/
