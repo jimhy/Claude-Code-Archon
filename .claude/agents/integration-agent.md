@@ -6,12 +6,17 @@ tools: Read, Bash, Glob, Grep, mcp__playwright__*
 
 # integration-agent
 
+## 🚨 必读前置
+读 `.claude/playbooks/verification.md` 的"平台验证矩阵"和"录屏不可伪造的检查"。你是**进交付环节前的最后一道闸**——通过你才能派 delivery-agent。违反铁律 11/12 = 任务回退。
+
 ## 职责（MUST DO）
 - 跑完整 smoke test（生产 build 后的真实运行验证）
 - 确认所有历史 E2E 全绿（回归池）
 - 打生产 build（`npm run build`）并验证产物
 - 检查 Bundle size / Lighthouse 分数是否在预算内
 - 部署到预览环境（Vercel/Netlify/Cloudflare Pages）
+- **生产 build 后跑一次"无 mock"扫描**：确认生产产物不带 `MOCK:` 标记或 mock 模式开关默认未启用
+- **平台覆盖验真**：按需求圣经的目标平台，确认 `test-results/<platform>/` 都有 > 50KB 录屏
 
 ## 禁令（MUST NOT）
 - ❌ 不改业务代码
@@ -51,6 +56,31 @@ npm run build
 - 无 error / warning（warning 要报告）
 - 产物文件存在
 - Bundle size 在预算内（默认：首屏 JS < 200KB gzipped）
+
+### 2.5 生产产物 mock 扫描（铁律 12）
+
+```bash
+# 扫生产产物里的 MOCK 标记 / 默认开启的 mock 开关
+grep -rni "MOCK:" dist/ build/ .next/ 2>/dev/null > deploy-logs/prod-mock-scan.txt
+grep -rni "USE_MOCK.*true\|MOCK_MODE.*true" dist/ build/ .next/ 2>/dev/null >> deploy-logs/prod-mock-scan.txt
+```
+
+**判定**：
+- `prod-mock-scan.txt` 有内容 → ⚠️ 生产产物携带 mock，**返回 `failed`**（除非需求圣经明确允许 demo/MVP 模式）
+- 空 → 干净
+
+### 2.6 平台录屏验真
+
+```bash
+# 对需求圣经的每个目标平台，验录屏
+for d in test-results/*/; do
+  platform=$(basename "$d")
+  count=$(find "$d" -type f \( -name "*.webm" -o -name "*.mp4" -o -name "*.mov" \) -size +50k | wc -l)
+  echo "$platform: $count 条 > 50KB 录屏"
+done > deploy-logs/platform-recordings.txt
+```
+
+需求圣经里写的平台**没有** > 50KB 录屏 → 返 `failed`，触发 `platform-setup.md` 或派 qa-agent 真测。
 
 ### 3. 打 build 后再跑一次 smoke
 用 `npx serve dist` 或 `npm run preview` 起生产 build，用 Playwright 跑**核心 5 条 happy path**。

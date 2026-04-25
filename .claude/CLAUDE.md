@@ -109,7 +109,7 @@ Claude Code 的 **subagent 是独立一次性 session**：
 
 ---
 
-## 🔒 第 2 条：十条铁律（任何 agent 必守）
+## 🔒 第 2 条：十二条铁律（任何 agent 必守）
 
 1. **禁止顺手优化** — 只改任务直接相关的文件。看到丑代码也不动。修 bug 时不同时加 feature。
 2. **UI 必须截图验证 + 交互自测** — 任何 UI 改动/生成必须实际跑起来用 Playwright 截图 + **点一遍关键控件**（radio/checkbox/按钮/图片放大/翻页/提交）。不能说"应该能工作"。写完就扔给用户 = 失败。
@@ -121,6 +121,8 @@ Claude Code 的 **subagent 是独立一次性 session**：
 8. **装工具前必须先检测，已装的直接跳过** — 任何下载/安装动作（winget / brew / npm i -g / 脚本安装 / 下载安装包等）前，**必须**先用检测命令确认是否已装（`command -v X` / `X --version` / `winget list` / `npm list -g` / 路径 `ls` 等）。已装 → 只记录版本，**跳过安装**。禁止"保险起见再装一遍"、禁止重复下载。适用所有 agent 和 playbook（尤其 platform-setup、kickoff 阶段 0.5）。
 9. **长耗时下载必须后台跑 + 周期监控 + 卡死重启** — 凡预期 > 30 秒的网络下载/安装（winget / brew / npm i -g / pip / `curl \| bash` / `playwright install chromium` / sdkmanager 等）**一律** `run_in_background: true` + 日志落盘到 `.claude/.setup-logs/<tool>-<attempt>.log`，主 agent 每 30 秒（大包 45-60 秒）poll 日志字节数；**连续 3 次（~90 秒）无增长**或出现 `ECONNRESET` / `ETIMEDOUT` / `getaddrinfo` / `Could not resolve host` / `SSL` / `network is unreachable` → **立即判卡死**：kill 进程 → 换镜像（npm→npmmirror、pip→清华、playwright→npmmirror、brew→清华 bottle、winget→GitHub Releases 直下）→ 重启。最多 3 次仍失败 → escalate 用户（卡点报告）。**禁止同步 `Bash` 干等**——那样你看不到任何信号，用户以为你挂了。完整协议见 `.claude/playbooks/platform-setup.md` 的"🛰 下载监控协议"章节；主 agent 和 subagent（含 agent-creator 动态造的）都必守。
 10. **AI 自测一律 headless，禁止弹浏览器打扰用户** — Playwright MCP 默认必须以 `--headless` 启动（`claude mcp add playwright -s user -- npx -y @playwright/mcp@latest --headless`）。agent 做任何自测、截图、E2E、UI 评审、竞品抓取都走 headless，**浏览器窗口绝不能弹到用户面前**——用户一看到弹窗就会以为是让 TA 填/点的，误当成 bug。**唯一例外**：kickoff 阶段 2 给用户打开 wizard 表单时，用 OS 命令（`start <url>` / `open <url>` / `xdg-open <url>`）启动**用户自己的默认浏览器**，并在开之前明确告诉用户"这个是给你填的"——绝不用 Playwright MCP 开有头窗口代替。装 MCP 前若检测到已有非 headless 版本，先 `claude mcp remove playwright -s user` 再重装加 `--headless`。
+11. **No evidence, no claim —— 反"偷懒幻觉"铁律** — 任何 agent（含主 agent）宣称"done / pass / works / implemented / tested"**必须**挂可打开的证据文件（`.webm` / `.png` / `.log` / `junit.xml` 等）到 `evidence[]`；且上游 agent 必须**真 Read 该文件验真**（存在 + 非空 + 内容相关），不许只看字符串路径糊弄。**严格禁止**：`expect(true).toBe(true)` 式废测试、写了不跑就说通过、`test.skip` / `test.only` 偷偷跳过、捕异常让测试永远绿、mock 被测代码本身、E2E 只点到按钮出现就停（未走完用户数据流）。违反 = 该子 agent 本轮任务判 `failed` 回退。完整协议 + DoD 清单见 `.claude/playbooks/verification.md` 的"三大禁忌"和"Definition of Done"章节。
+12. **真实数据第一，Mock 必须隔离 + 明示** — 所有 mock 数据 (a) 必须带 `// MOCK: <原因> <issue-ref>` 注释；(b) 必须集中放 `src/mocks/` 或 `src/__mocks__/`，禁止散落各组件；(c) 必须由**单一开关**（`VITE_USE_MOCK` / `NEXT_PUBLIC_MOCK_API` 等）控制，生产 build 默认关。delivery-agent 交付前必须 `grep -rn "MOCK:" src/` 扫描并**在真实度报告里列全清单**。按画像硬限：**小白画像完全禁止交付 mock 版**（必须接真后端或 escalate 说"我搞不定，建议你用 Supabase/Firebase 免费版，我帮你接"）；非技术画像交付时 UI 上必须有"示例数据"标记；技术/专家画像允许但清单必列 + 附"如何替换为真实服务"指南。**平台覆盖硬规矩**：按目标平台调用对应自动化工具——Web→Playwright、Windows→WinAppDriver+Appium、Android→Maestro 或 Appium+uiautomator2、iOS→xcuitest / Maestro iOS，每端至少一条 > 50KB + > 3 秒的录屏，主 agent 交付前 `stat` / `ffprobe` 验真。工具装不上时禁止假装测过，走"降级协议"明确告诉用户"哪端未自动测"。完整矩阵 + 扫描脚本 + 按画像门槛见 `.claude/playbooks/verification.md`。
 
 ---
 

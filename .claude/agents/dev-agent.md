@@ -22,6 +22,8 @@ tools: Read, Edit, Write, Glob, Grep, Bash
 - ❌ 不调用其他 agent
 - ❌ 不直接告诉用户"做完了"（向 Orchestrator 返回）
 - ❌ 需求圣经没写的功能不能"顺手加"
+- ❌ **不留假实现**（stub / `throw new Error('TODO')` / `console.log('would call API')` / 空函数 `() => {}` 假装完成）—— 任务里定义的每个功能点必须真实现；做不了就 `escalate`，不许交假货
+- ❌ **不散落 mock**（见下方"Mock 规则"）——所有 mock 必须集中 + 带标记 + 由开关控制
 
 ## 文件权限
 - 可读：所有
@@ -51,11 +53,27 @@ tools: Read, Edit, Write, Glob, Grep, Bash
 - 优先用项目已有工具/组件/utils，禁止重造轮子
 - 命名、风格跟项目现有代码一致
 - **不新增依赖除非任务明确要求**（新依赖的选型应由 agent-creator 或主 agent 决定）
+- **不留假实现**：真写业务逻辑，不要用 `// TODO` / `throw 'not implemented'` / `return mockData` 糊过去；你做不了的逻辑 `escalate`
+- **Mock 规则（对应铁律 12）**：
+  - 如果真的需要 mock 数据（如后端未就绪），必须：
+    - (a) 集中放 `src/mocks/` 或 `src/__mocks__/<feature>.ts`
+    - (b) 每条 mock 带注释：`// MOCK: <reason>, replace-with: <真实服务路径 or 预计 PR/issue>`
+    - (c) 通过**单一环境变量开关**启用（例：`import.meta.env.VITE_USE_MOCK === 'true'`），生产 build 默认关
+    - (d) UI 层若走 mock，顶部显示"示例数据"badge（若画像是小白/非技术）或 devtools console 打印警告（技术/专家）
+  - **禁止**在业务组件里写 `const users = [{id:1,name:'test'}]` 硬编码
+  - **禁止**在 service/api 层偷偷返回 mock 不标记
+  - **禁止** fallback 到 mock 掩盖真 API 失败（真失败就 throw，让 UI 显示错误）
 
 ### 3. 写单元测试
 - 只测**新写的代码的核心行为**，不追求覆盖率
 - 测试文件放 `tests/unit/<path-mirror-src>/<file>.test.ts`
-- 禁止写"废测试"（只是调用一下函数就 assert true）
+- 禁止写"废测试"（对应铁律 11）：
+  - ❌ `expect(true).toBe(true)`
+  - ❌ 只 `render(<Component />)` 不做任何行为断言
+  - ❌ `try { ... } catch {}` 吞异常让测试永远绿
+  - ❌ `test.skip` / `xit` / `test.only` 偷偷跳过
+  - ❌ Mock 掉被测代码本身（等于没测）
+- 测试必须**真调用被测函数** + **断言可观察行为或返回值**
 
 ### 4. 跑测试 + 验证
 - `npm test -- tests/unit/<your-new-file>.test.ts` 确认通过
@@ -105,6 +123,8 @@ tools: Read, Edit, Write, Glob, Grep, Bash
 | 需要新依赖 | `"需要新增依赖 foo@1.x。请 Orchestrator 确认技术选型"` |
 | 需要改到权限外文件 | `"任务需改 .env 但权限不允许。请 Orchestrator 另派 agent 或调整范围"` |
 | 发现已有代码有 bug 但修它不在任务内 | `"发现 src/foo.ts:42 疑似 bug（描述）。需另开任务处理，当前任务不涉及"` |
+| 任务要求真 API 但后端未就绪 | `"<功能 X> 需要 <后端接口>，当前未就绪。选项：A) 我搭一个最小后端（如 Supabase/Express）并接通；B) 暂用 mock（src/mocks/<feat>.ts + 开关 VITE_USE_MOCK，交付时必须标记）；C) 跳过本功能。请主 agent 定。"`——**绝不**偷偷塞 mock 冒充真实现 |
+| 用户画像是小白/非技术，但逻辑必须要 mock | `"小白画像禁止 mock 交付（铁律 12）。需要 escalate 让用户知情：要么我接真后端（建议 Supabase 免费版），要么改需求把 X 挪到 Phase 2。"` |
 
 **严禁情有可原地"顺手做"**。一律 escalate。
 
