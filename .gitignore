@@ -27,6 +27,7 @@ coverage/
 # 用户本地的 .claude/（贡献者不要提交自己的）
 .claude/settings.local.json
 .claude/.setup-logs/
+.claude/.trust-log.json
 .claude/agents/_drafts/
 
 # 备份目录（install.sh 生成）

@@ -214,9 +214,127 @@ subagent 返回 `status=success` 时，主 agent 必须做**独立校验**（对
 4. 对照本 playbook 的 DoD 清单 → 逐项核对 subagent 是否真的全过
 5. grep 有 "MOCK:" 标记 → 对照交付画像判断是否允许
 6. 任一项不过 → reject subagent，附带"哪项不过、为什么"，要求补证据或重跑
+7. **更新 trust log**（见下方"信任度持久化协议"）
 ```
 
-**硬规矩**：subagent 说 success 但 evidence 假/缺 → 视为 `failed` + 该 subagent 本轮 trust score -1（连续 3 次虚报 → 主 agent 应派 code-reviewer 审它的输出流程是否有系统性问题）。
+---
+
+## 🧮 信任度持久化协议（trust log）
+
+> **目的**：把"虚报 success"行为持久化记录，让主 agent 在跨会话也能识别"哪些 subagent 屡犯偷懒"，及时介入审查；同时给"诚实交付"建立长期信用。
+
+### Schema：`.claude/.trust-log.json`
+
+每个用户/项目独立一份，**绝不入版本库**（已加 .gitignore）。Schema：
+
+```json
+{
+  "schema_version": 1,
+  "thresholds": {
+    "consecutive_fake_to_review": 3,
+    "consecutive_fake_to_quarantine": 5,
+    "trust_score_floor": -3,
+    "trust_score_ceiling": 10
+  },
+  "agents": {
+    "qa-agent": {
+      "trust_score": 4,
+      "consecutive_fake_claims": 0,
+      "total_runs": 12,
+      "total_verified_success": 11,
+      "total_fake_claims": 1,
+      "last_verified_at": "2026-04-25T11:30:00Z",
+      "last_fake_claim_at": "2026-04-23T18:14:00Z",
+      "history": [
+        {
+          "ts": "2026-04-25T11:30:00Z",
+          "task_id": "logout-e2e-04",
+          "outcome": "success_verified",
+          "checks": "evidence_real + DoD_full + recordings_>50KB"
+        },
+        {
+          "ts": "2026-04-23T18:14:00Z",
+          "task_id": "login-e2e-01",
+          "outcome": "success_but_fake",
+          "reason": "claimed video at test-results/login.webm but file is 23 bytes",
+          "main_agent_action": "rejected, re-dispatched"
+        }
+      ],
+      "under_review": false,
+      "quarantined": false
+    }
+  }
+}
+```
+
+### 主 agent 必做动作
+
+每次 subagent 返回结果后：
+
+#### A. 校验通过（evidence 真，DoD 全勾）
+
+```
+读 .claude/.trust-log.json
+agents[<name>].trust_score = min(trust_score + 1, ceiling)
+agents[<name>].consecutive_fake_claims = 0
+agents[<name>].total_runs += 1
+agents[<name>].total_verified_success += 1
+agents[<name>].last_verified_at = now()
+append history { outcome: "success_verified", checks: ... }
+```
+
+#### B. 校验失败（evidence 假/缺，DoD 没全勾）
+
+```
+读 .claude/.trust-log.json
+agents[<name>].trust_score = max(trust_score - 1, floor)
+agents[<name>].consecutive_fake_claims += 1
+agents[<name>].total_runs += 1
+agents[<name>].total_fake_claims += 1
+agents[<name>].last_fake_claim_at = now()
+append history { outcome: "success_but_fake", reason: ..., main_agent_action: "rejected" }
+
+若 consecutive_fake_claims == thresholds.consecutive_fake_to_review (3)：
+  → agents[<name>].under_review = true
+  → 立即派 code-reviewer 审查该 subagent 最近 3 次的 evidence 路径 + 输出流程
+  → code-reviewer 任务："审 <agent> 是否有系统性虚报：是测试不充分？还是 prompt 误导？给改进建议"
+  → 用户告知："<称呼>，<agent> 连续 3 次声称完成但证据不足，我已派 code-reviewer 审查，暂停派它新任务"
+
+若 consecutive_fake_claims >= thresholds.consecutive_fake_to_quarantine (5)：
+  → agents[<name>].quarantined = true
+  → 主 agent 不再派该 subagent，直到用户手动重置（或 code-reviewer 报告改进 + 测试通过 1 次）
+  → 用户告知 + 卡点报告
+```
+
+#### C. 文件不存在的初始化
+
+第一次跑某 agent 时：
+
+```
+若 .claude/.trust-log.json 不存在 → 创建空 schema
+若 agents[<name>] 不存在 → 初始化为 trust_score=0, consecutive_fake_claims=0, runs=0, under_review=false
+```
+
+### 解除 review / quarantine 的条件
+
+- `under_review = true` 时主 agent 仍可派该 agent，但每次都要**多做一层 evidence 校验**（如随机抽 1 帧验录屏内容、Read 完整 junit.xml 不只 head）
+- 该 agent 连续 **2 次** 校验通过 → `under_review = false`，回归正常
+- `quarantined = true` 时主 agent **完全不派**该 agent；用户可在对话里说"重置 <agent> 信任"或 code-reviewer 报告"已修好"后，主 agent 重置 `quarantined = false` 并 `consecutive_fake_claims = 0`
+
+### History 长度上限
+
+每个 agent 的 `history[]` 保留最近 **20 条**，超出 FIFO 丢弃（避免 trust-log 无限膨胀）。`total_*` 计数仍累计。
+
+### Trust score 用途（除阈值触发外）
+
+主 agent 派任务时**信任分数高的 agent 派一类任务可减少校验粒度**（仍验 evidence 但不抽帧），分数低的 agent 任务必须做完整校验。这样诚实表现良好的 agent 长期能"省力"。
+
+### 主 agent 简短话术（用户透明度）
+
+- 第 1 次虚报：内部记录，**不打扰用户**（可能是偶发）
+- 第 2 次虚报：内部记录，**不打扰用户**
+- 第 3 次虚报触发 review：⚠️ **告知用户**："<称呼>，<agent> 这一阵子连续 3 次声称完成但证据不足，我派 code-reviewer 审一下它的输出流程，回头告诉你结果"
+- 解除 review 时：简短一句"<agent> 信任度恢复了 ✓"
 
 ---
 

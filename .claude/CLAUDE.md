@@ -194,6 +194,12 @@ Claude Code 的 **subagent 是独立一次性 session**：
 2. `did` 是否超出该 agent 的职责边界
 3. `git diff` 看有没有未报告的副作用
 4. `status=success` 但 evidence 不足 → **reject** 要求补证据
+5. **更新 trust log**（`.claude/.trust-log.json`）：每次 subagent 返回 success 都要记一笔
+   - evidence 真 + DoD 全勾 → trust_score +1, consecutive_fake_claims = 0
+   - evidence 假 / 缺 / DoD 没全勾 → trust_score -1, consecutive_fake_claims +1
+   - **连续 3 次虚报** → 自动派 code-reviewer 审该 agent + 告知用户
+   - **连续 5 次虚报** → quarantine（隔离），不再派该 agent，直到用户重置或修复
+   - 完整 schema + 流程见 `.claude/playbooks/verification.md` 的"信任度持久化协议"
 
 ### 边界违反 = 任务失败 + 回退
 
